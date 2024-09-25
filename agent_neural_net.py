@@ -9,10 +9,10 @@ def get_input(agent, tile, entity, pos):
 
   state = np.array([agent.health.val, agent.food.val, agent.water.val])
 
-  tile = tile[:,2]    ##(7,7)
+  tile = tile[:,2]    ##(15,15)
   entity = entity[:,[0,1,2,3,4,8,9,12,13,14]]
   entity[1] -= pos[0]
-  entity[2] -= pos[1] ##(25,10)
+  entity[2] -= pos[1] #(25,10)
   return tile.reshape(1,15,15), entity.reshape(1,25,10), state.reshape(1,1,3)
 
 
@@ -23,10 +23,10 @@ class PolicyNet(nn.Module):
         # Define the CNN for the tile input
         self.tile_conv = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=8, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(in_channels=8, out_channels=8, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten()
         )
@@ -37,7 +37,7 @@ class PolicyNet(nn.Module):
         # Define the fully connected layers for the entity input
         self.entity_fc = nn.Sequential(
             nn.Linear(in_features=25*10+3, out_features=32),
-            nn.ReLU()
+            nn.Tanh()
         )
 
         # Define the LSTM layer

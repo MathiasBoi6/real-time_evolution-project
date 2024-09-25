@@ -154,7 +154,6 @@ def pick_best_old(env, player_N, life_durations, spawn_positions, top=0.2):
     #parent = random.choice(my_keys_long_runners)
   return parent
 
-
 # TODO: Make this more efficient - spatial locality
 def mutate(player_num, parent, model_dict, life_durations, alpha=0.01, dynamic_alpha=True):
 
@@ -167,6 +166,15 @@ def mutate(player_num, parent, model_dict, life_durations, alpha=0.01, dynamic_a
       alpha = 0.0025
     else:
       alpha = 0.0075
+
+  # mutate movement network
+  for param in model_dict[player_num].parameters():
+    with torch.no_grad():
+      param.add_(torch.randn(param.size()) * alpha)
+
+
+# TODO: Make this more efficient - spatial locality
+def simple_mutate(player_num, model_dict, alpha=0.01):
 
   # mutate movement network
   for param in model_dict[player_num].parameters():
