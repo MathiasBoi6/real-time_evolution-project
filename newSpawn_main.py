@@ -114,6 +114,9 @@ replay_helper.reset()
 
 life_durations = {i+1: 0 for i in range(env.config.PLAYER_N)}
 birth_interval = {i+1: 0 for i in range(env.config.PLAYER_N)}
+generation_numbers = {i+1: 0 for i in range(env.config.PLAYER_N)}
+tiles_moved = {i+1: 0 for i in range(env.config.PLAYER_N)}
+births = {i+1: 0 for i in range(env.config.PLAYER_N)}
 
 # Getting spawn positions
 spawn_positions = [(0,0)]
@@ -135,7 +138,7 @@ pop_exp = []
 pop_life = []
 max_lifetime_dict = {}
 
-steps = 10_000_001
+steps = 1_000_001 #steps = 10_000_001
 
 ##respawn code
 '''
@@ -192,7 +195,8 @@ for step in range(steps):
     #print(step, obs[1]['Entity'][0])
     #print(env.realm.players.entities.keys())
     if step%100==0:
-        print(step) 
+        print(step)
+        print(max(generation_numbers.values()))
         with open(EXP_NAME+'_timestep.txt', 'w') as file:
             file.write(str(step))
     # Uncomment for saving replays
@@ -240,10 +244,12 @@ for step in range(steps):
  
             ##if conditions are right make an offspring
             if len(avail_index)>0 and life_durations[i+1] > MATURE_AGE and birth_interval[i+1] > INTERVAL:
-                birth_interval[i+1] =0
+                parent = i+1
+                birth_interval[parent] =0
+                births[parent] += 1
                 new_born = avail_index[0] 
                 avail_index.pop(0)
-                parent = i+1
+
                 try:
                     # Spawn individual in the same place as parent
                     x, y = env.realm.players.entities[parent].pos
@@ -257,6 +263,9 @@ for step in range(steps):
 
                 life_durations[new_born] = 0
                 birth_interval[new_born] = 0
+                generation_numbers[new_born] = generation_numbers[parent]+1
+
+
                 model_dict[new_born] = copy.deepcopy(model_dict[parent])
                 model_dict[new_born].hidden = (torch.zeros(model_dict[new_born].hidden[0].shape), torch.zeros(model_dict[new_born].hidden[1].shape))
                 simple_mutate(new_born, model_dict, alpha=0.1)
