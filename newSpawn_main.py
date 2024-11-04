@@ -135,7 +135,7 @@ pop_exp = []
 pop_life = []
 max_lifetime_dict = {}
 
-steps = 10_000_001
+steps = 100_001 #steps = 10_000_001
 
 ##respawn code
 '''
