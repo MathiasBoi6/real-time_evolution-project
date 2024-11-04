@@ -1,4 +1,7 @@
 
+__pycache__/
+
+
 
 *.json
 *.pkl
@@ -6,4 +9,5 @@
 *.pickle
 
 *.txt
-
+*.Identifier
+*.csv
