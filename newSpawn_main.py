@@ -4,17 +4,16 @@ import numpy as np
 import random
 import copy
 import pickle
+import pandas as pd
 
 from real_time_evolution import mutate, pick_best, simple_mutate
 from agent_neural_net import get_input, PolicyNet, save_state, NoCombatNet
-from logging_functions import calculate_avg_lifetime
+from logging_functions import EraLogger, calculate_avg_lifetime
+from config import set_config
 
 replay_helper = FileReplayHelper()
 import torch
 torch.set_num_threads(1)
-
-
-config = nmmo.config.Default
 
 ##TODO copy a folder "modded_NMMO" to this folder!
 ##this function must be added in the nmmo source, nmmo/entity/entity_manager.py
@@ -27,45 +26,7 @@ config = nmmo.config.Default
 #  player = Player(self.realm, (r,c), agent, resiliant_flag)
 #  super().spawn_entity(player)
 
-# Define the amount of resources on the map
-nmmo.config.Default.MAP_CENTER=32
-nmmo.config.Default.PROGRESSION_SPAWN_CLUSTERS=4
-nmmo.config.Default.PROGRESSION_SPAWN_UNIFORMS=8
-
-# Define the basic things
-nmmo.config.Default.TERRAIN_WATER = 0.5
-nmmo.config.Default.TERRAIN_DISABLE_STONE = True
-nmmo.config.Default.TERRAIN_GRASS = 0.6
-nmmo.config.Default.TERRAIN_FOILAGE = 0.5
-nmmo.config.Default.TERRAIN_FLIP_SEED = True
-nmmo.config.Default.HORIZON = 2**15-1
-
-# Remove the death fog
-nmmo.config.Default.PLAYER_DEATH_FOG_FINAL_SIZE = 0
-nmmo.config.Default.PLAYER_DEATH_FOG_SPEED = 0
-
-
-##Disable system modes
-nmmo.config.Default.COMBAT_SYSTEM_ENABLED = True
-nmmo.config.Default.EXCHANGE_SYSTEM_ENABLED = False
-nmmo.config.Default.COMMUNICATION_SYSTEM_ENABLED = False
-nmmo.config.Default.PROFESSION_SYSTEM_ENABLED = True
-nmmo.config.Default.PROGRESSION_SYSTEM_ENABLED = True
-nmmo.config.Default.EQUIPMENT_SYSTEM_ENABLED = True
-nmmo.config.Default.NPC_SYSTEM_ENABLED = True
-nmmo.config.Default.COMBAT_SPAWN_IMMUNITY = 0
-nmmo.config.Default.COMBAT_MELEE_REACH = 3
-nmmo.config.Default.COMBAT_RANGE_REACH = 3
-nmmo.config.Default.COMBAT_MAGE_REACH = 3
-
-##Population Size
-nmmo.config.Default.PLAYER_N = 64
-nmmo.config.Default.NPC_N = 0
-NPCs = nmmo.config.Default.NPC_N
-
-##Player Input
-nmmo.config.Default.PLAYER_N_OBS = 25
-nmmo.config.Default.PLAYER_VISION_RADIUS = 7
+config, NPCs = set_config()
 
 MATURE_AGE = 50
 INTERVAL = 30
@@ -84,10 +45,7 @@ output_size_attack = player_N+1+NPCs
 
 # Random weights with a FF network
 model_dict = {i+1: PolicyNet(output_size, output_size_attack)  for i in range(player_N)} # Dictionary of random models for each agent
-
-
 n_params = len(torch.nn.utils.parameters_to_vector(model_dict[1].parameters()))
-
 print('number of parameters in network:', n_params)
 
 
@@ -135,7 +93,7 @@ pop_exp = []
 pop_life = []
 max_lifetime_dict = {}
 
-steps = 100_001 #steps = 10_000_001
+steps = 10_001 #steps = 10_000_001
 
 ##respawn code
 '''
@@ -159,19 +117,29 @@ mutate(i+1, parent, model_dict, life_durations, alpha=0.02, dynamic_alpha=True)
 '''
 
 AVAILABLE = False
+eraLogger = EraLogger(startStep = 0)
+allEraData = []
 
 avail_index = []
 # The main loop
 for step in range(steps):
-
-
     if env.num_agents ==0 :
+        eraLogger.exctinct = True
+
+        eraData = eraLogger.SaveCurrentEraData(
+            total_steps=step, 
+            living_agents=env.num_agents)
+        allEraData.append(eraData)
+
+
         print('extinction')
         for i in range(player_N):
             simple_mutate(i+1, model_dict, alpha=0.01)
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
+    else: 
+        eraLogger.exctinct =  False # Set extinct to false after one iteration, to prevent loggin exctinct eras twice
 
 
 
@@ -207,11 +175,21 @@ for step in range(steps):
     # Assign the top-all-time age record to the current tick
     #max_lifetime_dict[step] = max_lifetime
 
-    if (step+1)%10_000 == 0:
+    if (step+1)%10_000 == 0: #Change this to use (step + 1- eraLogger.eraStartStep) % 10_000 == 0
+        if not eraLogger.exctinct:
+            eraData = eraLogger.SaveCurrentEraData(
+                total_steps=step, 
+                living_agents=env.num_agents)
+            allEraData.append(eraData)
+
+        df = pd.DataFrame(allEraData)
+        df.to_csv('era_data.csv', index=False)
+
         print('reset env') 
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
+        
 
     for i in range(player_N):
         ## ignore actions of unalive agents
@@ -260,6 +238,7 @@ for step in range(steps):
                 model_dict[new_born] = copy.deepcopy(model_dict[parent])
                 model_dict[new_born].hidden = (torch.zeros(model_dict[new_born].hidden[0].shape), torch.zeros(model_dict[new_born].hidden[1].shape))
                 simple_mutate(new_born, model_dict, alpha=0.1)
+                eraLogger.birthTracker += 1
 
 
 
