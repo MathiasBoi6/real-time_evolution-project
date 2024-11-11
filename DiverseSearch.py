@@ -1,3 +1,14 @@
+### Experiment Diverse Search
+# The poor performance of the evolved agents are assumed to be due to the evolution only being 
+# performed through mutation (no crossover), which just does a fuzzy search and is likely to get stuck in local optima. 
+
+# Test solutions:
+# 1. Try adding cross over
+# 2. Use something like CMA-ES to use samples from a larger space.
+
+# Crossover is usually done from better performing agents, but none of the agents perform well,
+# so parents are just chosen at random.
+
 import os
 import nmmo
 from nmmo.render.replay_helper import FileReplayHelper
@@ -7,7 +18,7 @@ import copy
 import pickle
 import pandas as pd
 
-from real_time_evolution import mutate, pick_best, simple_mutate
+from real_time_evolution import mutate, pick_best, simple_mutate, crossover, crossoverModelDict
 from agent_neural_net import get_input, PolicyNet, save_state, NoCombatNet
 from logging_functions import EraLogger, calculate_avg_lifetime, GetAgentXP
 from config import set_config
@@ -16,22 +27,11 @@ replay_helper = FileReplayHelper()
 import torch
 torch.set_num_threads(1)
 
-##TODO copy a folder "modded_NMMO" to this folder!
-##this function must be added in the nmmo source, nmmo/entity/entity_manager.py
-#def spawn_individual(self,r, c, agent_id):
-
-#  agent_loader = self.config.PLAYER_LOADER(self.config, self._np_random)
-#  agent = next(agent_loader)
-#  agent = agent(self.config, agent_id)
-#  resiliant_flag = False
-#  player = Player(self.realm, (r,c), agent, resiliant_flag)
-#  super().spawn_entity(player)
-
 config, NPCs = set_config()
 
-MATURE_AGE = 50
+MATURE_AGE = 10000
 INTERVAL = 30
-EXP_NAME = 'NewSpawn_'
+EXP_NAME = 'DiverseSearch'
 
 env = nmmo.Env()
 player_N = env.config.PLAYER_N
@@ -46,9 +46,6 @@ output_size_attack = player_N+1+NPCs
 
 # Random weights with a FF network
 model_dict = {i+1: PolicyNet(output_size, output_size_attack)  for i in range(player_N)} # Dictionary of random models for each agent
-n_params = len(torch.nn.utils.parameters_to_vector(model_dict[1].parameters()))
-print('number of parameters in network:', n_params)
-
 
 # Forward pass with a feed forward NN
 action_list = []
@@ -61,7 +58,6 @@ for i in range(env.config.PLAYER_N):
         # Get move actions
         output, style, output_attack = model_dict[i+1](inp)
         # Get attack actions (target, since agents only do melee combat)
-        #output_attack = model_dict[i+1][1](input)
         action_list.append(output)
         action_list_attack.append(output_attack)
 
@@ -96,26 +92,6 @@ max_lifetime_dict = {}
 
 steps = 50_001 #steps = 10_000_001
 
-##respawn code
-'''
-parent = pick_best(env, player_N, life_durations, spawn_positions,)
-#env.realm.players.cull()
-try:
-# Spawn individual in the same place as parent
-  x, y = env.realm.players.entities[parent].pos
-  #x, y = random.choice(spawn_positions)
-except:
-# Spawn individual at a random spawn location
-  x, y = random.choice(spawn_positions)
-spawn_positions[i+1] = (x,y)
-x,y = spawn_positions[i+1] 
-env.realm.players.spawn_individual(x, y, i+1)
-# Upon the "birth" of a new agent, reset the life duration and visited tiles
-life_durations[i+1] = 0
-model_dict[i+1] = copy.deepcopy(model_dict[parent])
-model_dict[i+1].hidden = (torch.zeros(model_dict[i+1].hidden[0].shape), torch.zeros(model_dict[i+1].hidden[1].shape))
-mutate(i+1, parent, model_dict, life_durations, alpha=0.02, dynamic_alpha=True)
-'''
 
 AVAILABLE = False
 
@@ -142,9 +118,12 @@ def UpdateEraData():
             unsavedAgentEraData.append(
                 GetAgentData(env.realm.players.entities[i+1], i+1)
             )
+firstSave = True
 ###
 
-
+#Save data to output directory
+output_dir = os.path.join('output', EXP_NAME)
+os.makedirs(output_dir, exist_ok=True)
 
 avail_index = []
 # The main loop
@@ -154,6 +133,8 @@ for step in range(steps):
         UpdateEraData()
 
         print('extinction')
+
+        model_dict = crossoverModelDict(model_dict, player_N)
         for i in range(player_N):
             simple_mutate(i+1, model_dict, alpha=0.01)
         env.close()
@@ -168,7 +149,7 @@ for step in range(steps):
         AVAILABLE = True
         avail_index = []
         for i in range(player_N):
-        ## ignore actions of unalive agents
+            ## ignore actions of unalive agents
             if i+1 not in env.realm.players.entities:
                 avail_index.append(i+1)
     else:
@@ -176,46 +157,38 @@ for step in range(steps):
 
     XP_SUM = 0
     LIFE_SUM = 0 
-    #print(step, obs[1]['Entity'][0])
-    #print(env.realm.players.entities.keys())
+    
     if step%100==0:
         print(step) 
-        with open(EXP_NAME+'_timestep.txt', 'w') as file:
+        with open(os.path.join(output_dir, EXP_NAME + 'timestep.txt'), 'w') as file:
             file.write(str(step))
-    # Uncomment for saving replays
-    #if i%1000 == 0:
-    #  replay_file = f"/content/replay1"
-    #  replay_helper.save(replay_file, compress=True)
+
 
     current_oldest = life_durations[max(life_durations, key=life_durations.get)]
-    #if current_oldest > max_lifetime:
-    #  max_lifetime = current_oldest
-
-    # Assign the top-all-time age record to the current tick
-    #max_lifetime_dict[step] = max_lifetime
 
     #Save era data to file
     if (step+1)%10_000 == 0:
         # This could be called on exit instead (with try: except: keyboard interrupt), but might be undesirable on the cluster.
-        eraFilePath = 'era_data.csv'
-        agentFilePath = 'agent_data.csv'
+        eraFilePath = os.path.join(output_dir, EXP_NAME + 'era_data.csv')
+        agentFilePath = os.path.join(output_dir, EXP_NAME + 'agent_data.csv')
         print(unsavedAgentEraData)
 
-        if eraLogger.curretEra == 0:
+        if firstSave:
             df = pd.DataFrame(unsavedEraData)
-            df.to_csv(eraFilePath, index=True) 
+            df.to_csv(eraFilePath) 
             df = pd.DataFrame(unsavedAgentEraData)
-            df.to_csv(agentFilePath, index=True) 
+            df.to_csv(agentFilePath) 
+            firstSave = False
         else:
             df = pd.DataFrame(unsavedEraData)
-            df.to_csv(eraFilePath, mode='a', header=False, index=True) #Not sure this index will work
+            df.to_csv(eraFilePath, mode='a', header=False) #Not sure this index will work
             df = pd.DataFrame(unsavedAgentEraData)
-            df.to_csv(agentFilePath, mode='a', header=False, index=True) 
+            df.to_csv(agentFilePath, mode='a', header=False) 
         unsavedEraData = []
         unsavedAgentEraData = []
 
 
-    if (step + 1- eraLogger.eraStartStep) % 10_000 == 0: #if (step+1)%10_000 == 0: # Changed to not have shorter eras after exctinctions
+    if (step + 1- eraLogger.eraStartStep) % 500 == 0: #if (step + 1- eraLogger.eraStartStep) % 10_000 == 0:
         UpdateEraData()
 
         print('reset env') 
@@ -231,7 +204,7 @@ for step in range(steps):
             birth_interval[i+1] = 0
             actions[i+1] = {}
 
-    # Check if agents are alive, and if someone dies ignore their action
+        # Check if agents are alive, and if someone dies ignore their action
         elif i+1 in env.realm.players.entities and i+1 in obs:
             life_durations[i+1] += 1
             birth_interval[i+1] += 1
@@ -271,7 +244,7 @@ for step in range(steps):
 
                 life_durations[new_born] = 0
                 birth_interval[new_born] = 0
-                model_dict[new_born] = copy.deepcopy(model_dict[parent])
+                model_dict[new_born] = crossover(model_dict[new_born], model_dict[parent])
                 model_dict[new_born].hidden = (torch.zeros(model_dict[new_born].hidden[0].shape), torch.zeros(model_dict[new_born].hidden[1].shape))
                 simple_mutate(new_born, model_dict, alpha=0.1)
                 eraLogger.birthTracker += 1
@@ -303,19 +276,19 @@ for step in range(steps):
 
 
     if (step+1)%3000==0:
-      pickle.dump((pop_exp, pop_life, oldest), open(EXP_NAME+'progress.pkl','wb'))
+      pickle.dump((pop_exp, pop_life, oldest), open(os.path.join(output_dir, 'progress.pkl'),'wb'))
       print('save replay')
       if step < 5000:
-        replay_helper.save(EXP_NAME+str(step), compress=False)
+        replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
       else:
-        replay_helper.save(EXP_NAME, compress=False)
+        replay_helper.save(os.path.join(output_dir, EXP_NAME), compress=False)
 
       replay_helper = FileReplayHelper()
       env.realm.record_replay(replay_helper)
       replay_helper.reset()
     if (step+1)%100_000==0:
       print('save population weights')
-      pickle.dump(model_dict,open(EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle','wb'))
+      pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle'),'wb'))
 
 
 # Save replay file and the weights
@@ -323,39 +296,4 @@ for step in range(steps):
 #replay_file = f"/content/replay1"
 #replay_helper.save("no_brain22", compress=False)
 #save_state(model_dict, f"weights")
-pickle.dump(model_dict,open(EXP_NAME+'_agents_model_dict_final.pickle','wb'))
-
-  # Calculate average lifetime of all agents every 20 steps
-
-  #if (step+1)%20 ==0:
-  #avg_lifetime[step] = calculate_avg_lifetime(env, obs, player_N)
-  #print('average_lifetime:', avg_lifetime[step])
-
-  ##get agent actions
-  #for i in range(env.config.PLAYER_N):
-
-
-
-'''
-import matplotlib.pyplot as plt
-
-# Extracting keys and values
-keys = list(avg_lifetime.keys())
-values = list(avg_lifetime.values())
-
-# Plotting
-plt.bar(keys, values)
-plt.xlabel('Keys')
-plt.ylabel('Values')
-plt.title('Average lifetime per step')
-plt.show()
-
-
-# This is how to get food level
-env.realm.players.entities[1].__dict__['food'].val
-env.realm.players.entities[1].__dict__['time_alive'].val
-
-env.realm.players.entities[1].__dict__['status'].__dict__['freeze'].val
-
-env.realm.players.entities[1].State.__dict__
-'''
+pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_final.pickle'),'wb'))

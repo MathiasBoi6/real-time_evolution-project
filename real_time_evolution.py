@@ -182,3 +182,23 @@ def simple_mutate(player_num, model_dict, alpha=0.01):
       param.add_(torch.randn(param.size()) * alpha)
 
 
+def crossover(parent1, parent2):
+    # self.output_size_move and self.output_size_attack are defined for PolicyNet
+    child = type(parent1)(parent1.output_size_move, parent1.output_size_attack)
+
+    for param1, param2, child_param in zip(
+      parent1.parameters(), parent2.parameters(), child.parameters()):
+        with torch.no_grad():
+          mask = torch.rand(param1.size()) > 0.5  
+          child_param.copy_(torch.where(mask, param1, param2)) 
+  
+    return child
+
+def crossoverModelDict(model_dict, player_num):
+    next_generation = {}
+    for i in range(player_num):
+        parent1_id, parent2_id = random.sample(range(1, player_num), 2) #Random from all agents
+        child = crossover(model_dict[parent1_id], model_dict[parent2_id])
+        next_generation[i + 1] = child
+
+    return next_generation
