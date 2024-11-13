@@ -6,11 +6,13 @@ import random
 import copy
 import pickle
 import pandas as pd
+import collections
 
 from real_time_evolution import mutate, pick_best, simple_mutate
 from agent_neural_net import get_input, PolicyNet, save_state, NoCombatNet
 from logging_functions import EraLogger, calculate_avg_lifetime, GetAgentXP
 from config import set_config
+from collections import deque
 
 replay_helper = FileReplayHelper()
 import torch
@@ -79,6 +81,8 @@ spawn_positions = [(0,0)]
 for i in range(player_N):
     spawn_positions.append(env.realm.players.entities[i+1].spawn_pos)
 
+# Set up queue for available agent slots
+avail_queue = deque([])
 
 # Setting up the average lifetime dictionary
 avg_lifetime = {}
@@ -166,11 +170,13 @@ for step in range(steps):
     #If the number of agents alive doesn't correspond to PLAYER_N, spawn new offspring
     if env.num_agents != player_N:
         AVAILABLE = True
-        avail_index = []
+        #avail_index = []
         for i in range(player_N):
         ## ignore actions of unalive agents
             if i+1 not in env.realm.players.entities:
-                avail_index.append(i+1)
+                #avail_index.append(i+1)
+                if i+1 not in avail_queue:
+                    avail_queue.append(i+1)
     else:
         AVAILABLE = False
 
@@ -252,8 +258,8 @@ for step in range(steps):
             ##if conditions are right make an offspring
             if len(avail_index)>0 and life_durations[i+1] > MATURE_AGE and birth_interval[i+1] > INTERVAL:
                 birth_interval[i+1] =0
-                new_born = avail_index[0] 
-                avail_index.pop(0)
+                new_born = avail_queue.popleft()
+                #avail_index.pop(0)
                 parent = i+1
 
                 #unsavedAgentEraData.append(GetAgentData(new_born)) #Store data of dead agent before rebirth
