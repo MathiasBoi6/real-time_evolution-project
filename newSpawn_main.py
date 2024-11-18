@@ -6,11 +6,13 @@ import random
 import copy
 import pickle
 import pandas as pd
+import collections
 
 from real_time_evolution import mutate, pick_best, simple_mutate
 from agent_neural_net import get_input, PolicyNet, save_state, NoCombatNet
 from logging_functions import EraLogger, calculate_avg_lifetime, GetAgentXP
 from config import set_config
+from collections import deque
 
 replay_helper = FileReplayHelper()
 import torch
@@ -79,6 +81,8 @@ spawn_positions = [(0,0)]
 for i in range(player_N):
     spawn_positions.append(env.realm.players.entities[i+1].spawn_pos)
 
+# Set up queue for available agent slots
+avail_queue = deque([])
 
 # Setting up the average lifetime dictionary
 avg_lifetime = {}
@@ -94,7 +98,8 @@ pop_exp = []
 pop_life = []
 max_lifetime_dict = {}
 
-steps = 50_001 #steps = 10_000_001
+# steps = 50_001 
+steps = 10_000_001
 
 ##respawn code
 '''
@@ -123,6 +128,7 @@ AVAILABLE = False
 eraLogger = EraLogger(startStep = 0)
 unsavedEraData = []
 unsavedAgentEraData = [] #Updated when agent dies or at end of era
+
 def GetAgentData(entity, id):
     agentData = GetAgentXP(entity)
     agentData.update({
@@ -142,9 +148,61 @@ def UpdateEraData():
             unsavedAgentEraData.append(
                 GetAgentData(env.realm.players.entities[i+1], i+1)
             )
+def SaveData():
+    # This could be called on exit instead (with try: except: keyboard interrupt), but might be undesirable on the cluster.
+    global unsavedEraData
+    global unsavedAgentEraData
+
+    eraFilePath = 'era_data.csv'
+    agentFilePath = 'agent_data.csv'
+    print(unsavedAgentEraData)
+
+    if eraLogger.curretEra == 0:
+        df = pd.DataFrame(unsavedEraData)
+        df.to_csv(eraFilePath, index=True) 
+        df = pd.DataFrame(unsavedAgentEraData)
+        df.to_csv(agentFilePath, index=True) 
+    else:
+        df = pd.DataFrame(unsavedEraData)
+        df.to_csv(eraFilePath, mode='a', header=False, index=True) #Not sure this index will work
+        df = pd.DataFrame(unsavedAgentEraData)
+        df.to_csv(agentFilePath, mode='a', header=False, index=True) 
+    
+   
+
+    unsavedEraData = []
+    unsavedAgentEraData = []
 ###
 
+def MakeOffspring():
+    birth_interval[i+1] =0
+    new_born = avail_queue.popleft()
+    #avail_index.pop(0)
+    parent = i+1
 
+    #unsavedAgentEraData.append(GetAgentData(new_born)) #Store data of dead agent before rebirth
+
+    try:
+        # Spawn individual in the same place as parent
+        x, y = env.realm.players.entities[parent].pos
+        #x, y = random.choice(spawn_positions)
+    except:
+        # Spawn individual at a random spawn location
+        x, y = random.choice(spawn_positions)
+        spawn_positions[new_born] = (x,y)
+
+    env.realm.players.spawn_individual(x, y, new_born)
+
+    life_durations[new_born] = 0
+    birth_interval[new_born] = 0
+    model_dict[new_born] = copy.deepcopy(model_dict[parent])
+    model_dict[new_born].hidden = (torch.zeros(model_dict[new_born].hidden[0].shape), torch.zeros(model_dict[new_born].hidden[1].shape))
+    simple_mutate(new_born, model_dict, alpha=0.1)
+    eraLogger.birthTracker += 1
+    
+def SaveReplay():
+    replay_file = f"/content/replay1"
+    replay_helper.save(replay_file, compress=True)
 
 avail_index = []
 # The main loop
@@ -166,11 +224,13 @@ for step in range(steps):
     #If the number of agents alive doesn't correspond to PLAYER_N, spawn new offspring
     if env.num_agents != player_N:
         AVAILABLE = True
-        avail_index = []
+        #avail_index = []
         for i in range(player_N):
         ## ignore actions of unalive agents
             if i+1 not in env.realm.players.entities:
-                avail_index.append(i+1)
+                #avail_index.append(i+1)
+                if i+1 not in avail_queue:
+                    avail_queue.append(i+1)
     else:
         AVAILABLE = False
 
@@ -183,9 +243,8 @@ for step in range(steps):
         with open(EXP_NAME+'_timestep.txt', 'w') as file:
             file.write(str(step))
     # Uncomment for saving replays
-    #if i%1000 == 0:
-    #  replay_file = f"/content/replay1"
-    #  replay_helper.save(replay_file, compress=True)
+    #if i%1000 == 0: SaveReplay()
+
 
     current_oldest = life_durations[max(life_durations, key=life_durations.get)]
     #if current_oldest > max_lifetime:
@@ -196,23 +255,7 @@ for step in range(steps):
 
     #Save era data to file
     if (step+1)%10_000 == 0:
-        # This could be called on exit instead (with try: except: keyboard interrupt), but might be undesirable on the cluster.
-        eraFilePath = 'era_data.csv'
-        agentFilePath = 'agent_data.csv'
-        print(unsavedAgentEraData)
-
-        if eraLogger.curretEra == 0:
-            df = pd.DataFrame(unsavedEraData)
-            df.to_csv(eraFilePath, index=True) 
-            df = pd.DataFrame(unsavedAgentEraData)
-            df.to_csv(agentFilePath, index=True) 
-        else:
-            df = pd.DataFrame(unsavedEraData)
-            df.to_csv(eraFilePath, mode='a', header=False, index=True) #Not sure this index will work
-            df = pd.DataFrame(unsavedAgentEraData)
-            df.to_csv(agentFilePath, mode='a', header=False, index=True) 
-        unsavedEraData = []
-        unsavedAgentEraData = []
+        SaveData()
 
 
     if (step + 1- eraLogger.eraStartStep) % 10_000 == 0: #if (step+1)%10_000 == 0: # Changed to not have shorter eras after exctinctions
@@ -246,37 +289,13 @@ for step in range(steps):
             XP_SUM += env.realm.players.entities[i+1].alchemy_exp.val
 
             LIFE_SUM += env.realm.players.entities[i+1].time_alive.val 
+
             if env.realm.players.entities[i+1].time_alive.val > max_lifetime:
                 max_lifetime = env.realm.players.entities[i+1].time_alive.val
  
             ##if conditions are right make an offspring
             if len(avail_index)>0 and life_durations[i+1] > MATURE_AGE and birth_interval[i+1] > INTERVAL:
-                birth_interval[i+1] =0
-                new_born = avail_index[0] 
-                avail_index.pop(0)
-                parent = i+1
-
-                #unsavedAgentEraData.append(GetAgentData(new_born)) #Store data of dead agent before rebirth
-
-                try:
-                    # Spawn individual in the same place as parent
-                    x, y = env.realm.players.entities[parent].pos
-                    #x, y = random.choice(spawn_positions)
-                except:
-                    # Spawn individual at a random spawn location
-                    x, y = random.choice(spawn_positions)
-                    spawn_positions[new_born] = (x,y)
-
-                env.realm.players.spawn_individual(x, y, new_born)
-
-                life_durations[new_born] = 0
-                birth_interval[new_born] = 0
-                model_dict[new_born] = copy.deepcopy(model_dict[parent])
-                model_dict[new_born].hidden = (torch.zeros(model_dict[new_born].hidden[0].shape), torch.zeros(model_dict[new_born].hidden[1].shape))
-                simple_mutate(new_born, model_dict, alpha=0.1)
-                eraLogger.birthTracker += 1
-
-
+                MakeOffspring()
 
             inp = get_input(env.realm.players.entities[i+1], obs[i+1]['Tile'], obs[i+1]['Entity'], env.realm.players.entities[i+1].pos)
             output, style, output_attack = model_dict[i+1](inp)
