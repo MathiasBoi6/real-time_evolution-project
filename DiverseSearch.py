@@ -10,6 +10,7 @@
 # so parents are just chosen at random.
 
 import os
+import time
 import nmmo
 from nmmo.render.replay_helper import FileReplayHelper
 import numpy as np
@@ -91,7 +92,7 @@ pop_life = []
 max_lifetime_dict = {}
 
 steps = 50_001 #steps = 10_000_001
-
+agentSuccess = 100
 
 AVAILABLE = False
 
@@ -129,10 +130,7 @@ avail_index = []
 # The main loop
 for step in range(steps):
     if env.num_agents ==0 :
-        eraLogger.exctinct = True
         UpdateEraData()
-
-        print('extinction')
 
         model_dict = crossoverModelDict(model_dict, player_N)
         for i in range(player_N):
@@ -140,8 +138,9 @@ for step in range(steps):
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
-    else: 
-        eraLogger.exctinct =  False # Set extinct to false after one iteration, to prevent loggin exctinct eras twice
+        replay_helper = FileReplayHelper()
+        env.realm.record_replay(replay_helper)
+        replay_helper.reset()
 
 
     #If the number of agents alive doesn't correspond to PLAYER_N, spawn new offspring
@@ -158,8 +157,8 @@ for step in range(steps):
     XP_SUM = 0
     LIFE_SUM = 0 
     
-    if step%100==0:
-        print(step) 
+    if step%300==0:
+        print(f'step {step}, maxAge {agentSuccess}, era starting step {eraLogger.eraStartStep}') 
         with open(os.path.join(output_dir, EXP_NAME + 'timestep.txt'), 'w') as file:
             file.write(str(step))
 
@@ -187,11 +186,26 @@ for step in range(steps):
         unsavedEraData = []
         unsavedAgentEraData = []
 
+    if (step + 1 - eraLogger.eraStartStep) % agentSuccess == 0: #if (step + 1- eraLogger.eraStartStep) % 10_000 == 0:
+        print(f'\n{agentSuccess} successful steps') 
+        print(f'\nStep: {step}, start step: {eraLogger.eraStartStep}, diff: {step - eraLogger.eraStartStep}') 
 
-    if (step + 1- eraLogger.eraStartStep) % 500 == 0: #if (step + 1- eraLogger.eraStartStep) % 10_000 == 0:
         UpdateEraData()
 
-        print('reset env') 
+        #REPLACE DEAD AGENTS
+        for id in avail_index:
+            if len(env.realm.players.entities.keys()) < 2: 
+                model_dict[id] = model_dict[list(env.realm.players.entities.keys())[0]]
+                model_dict[id].hidden = (torch.zeros(model_dict[id].hidden[0].shape), torch.zeros(model_dict[id].hidden[1].shape))
+            else:
+                parent1_id, parent2_id = random.sample(env.realm.players.entities.keys(), 2)
+                model_dict[id] = crossover(model_dict[parent1_id], model_dict[parent2_id])
+                model_dict[id].hidden = (torch.zeros(model_dict[id].hidden[0].shape), torch.zeros(model_dict[id].hidden[1].shape))
+        
+        replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
+        time.sleep(1)
+
+        agentSuccess *= 2
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
@@ -275,20 +289,20 @@ for step in range(steps):
     oldest.append(max_lifetime)
 
 
-    if (step+1)%3000==0:
-      pickle.dump((pop_exp, pop_life, oldest), open(os.path.join(output_dir, 'progress.pkl'),'wb'))
-      print('save replay')
-      if step < 5000:
-        replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
-      else:
-        replay_helper.save(os.path.join(output_dir, EXP_NAME), compress=False)
+    # if (step+1)%3000==0:
+    #   pickle.dump((pop_exp, pop_life, oldest), open(os.path.join(output_dir, 'progress.pkl'),'wb'))
+    #   print('save replay')
+    #   if step < 5000:
+    #     replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
+    #   else:
+    #     replay_helper.save(os.path.join(output_dir, EXP_NAME), compress=False)
 
-      replay_helper = FileReplayHelper()
-      env.realm.record_replay(replay_helper)
-      replay_helper.reset()
-    if (step+1)%100_000==0:
-      print('save population weights')
-      pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle'),'wb'))
+    #   replay_helper = FileReplayHelper()
+    #   env.realm.record_replay(replay_helper)
+    #   replay_helper.reset()
+    # if (step+1)%100_000==0:
+    #   print('save population weights')
+    #   pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle'),'wb'))
 
 
 # Save replay file and the weights

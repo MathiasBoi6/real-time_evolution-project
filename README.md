@@ -9,12 +9,9 @@ copy the file terrain.py from this folder and use it to replace the terrain.py f
 
 Currently, the relevant file to run is newSpawn_main.py.
 
-Upload resulting JSON for visualization of the run:
-https://neuralmmo.github.io/client/
-
 # Rendering
 
-To render the resulting JSON, you can use the online client:
+Upload resulting JSON for visualization of the run:
 https://neuralmmo.github.io/client/
 
 # Todo:
