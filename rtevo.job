@@ -1,8 +1,9 @@
 #!/bin/bash
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=prie-rtevo
-#SBATCH --output=/home/prie/results/result-%j.txt
-#SBATCH --error=/home/prie/errors/error-%j.err
-#SBATCH --mem-per-cpu=3G
+#SBATCH --output=/home/prie/results/%j.txt
+#SBATCH --error=/home/prie/errors/%j.err
+#SBATCH --mem-per-cpu=10G
+#SBATCH --time=10:00:00
 
 conda run -n rt_evo python newSpawn_main.py
