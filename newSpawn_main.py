@@ -217,6 +217,7 @@ for step in range(steps):
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
+        avail_queue.clear()
     else: 
         eraLogger.exctinct =  False # Set extinct to false after one iteration, to prevent loggin exctinct eras twice
 
