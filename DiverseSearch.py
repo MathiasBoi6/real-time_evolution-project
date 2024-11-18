@@ -91,7 +91,7 @@ pop_exp = []
 pop_life = []
 max_lifetime_dict = {}
 
-steps = 50_001 #steps = 10_000_001
+steps = 10_000_001
 agentSuccess = 100
 
 AVAILABLE = False
@@ -203,7 +203,9 @@ for step in range(steps):
                 model_dict[id].hidden = (torch.zeros(model_dict[id].hidden[0].shape), torch.zeros(model_dict[id].hidden[1].shape))
         
         replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
-        time.sleep(1)
+        replay_helper = FileReplayHelper()
+        env.realm.record_replay(replay_helper)
+        replay_helper.reset()
 
         agentSuccess *= 2
         env.close()
@@ -305,9 +307,9 @@ for step in range(steps):
     #   pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle'),'wb'))
 
 
-# Save replay file and the weights
+replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
+replay_helper = FileReplayHelper()
+env.realm.record_replay(replay_helper)
+replay_helper.reset()
 
-#replay_file = f"/content/replay1"
-#replay_helper.save("no_brain22", compress=False)
-#save_state(model_dict, f"weights")
 pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_final.pickle'),'wb'))
