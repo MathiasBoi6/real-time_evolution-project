@@ -309,7 +309,7 @@ for step in range(steps):
     # Run a step
     obs, rewards, dones, infos = env.step(actions) ##TODO: why not use DONES to replace?
 
-    print(dir(env.realm))
+    #print(dir(env.realm))
     #for id in env.realm.players.dead_this_tick:
         #print(env.realm.players.dead_this_tick[id].melee_exp.val)
 
