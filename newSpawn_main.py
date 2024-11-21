@@ -155,7 +155,7 @@ def SaveData():
 
     eraFilePath = 'era_data.csv'
     agentFilePath = 'agent_data.csv'
-    print(unsavedAgentEraData)
+    #print(unsavedAgentEraData)
 
     if eraLogger.curretEra == 0:
         df = pd.DataFrame(unsavedEraData)
@@ -174,12 +174,12 @@ def SaveData():
     unsavedAgentEraData = []
 ###
 
-def MakeOffspring():
+def MakeOffspring(i):
     birth_interval[i+1] =0
     new_born = avail_queue.popleft()
     #avail_index.pop(0)
     parent = i+1
-
+    print(i+1)
     #unsavedAgentEraData.append(GetAgentData(new_born)) #Store data of dead agent before rebirth
 
     try:
@@ -217,6 +217,7 @@ for step in range(steps):
         env.close()
         env = nmmo.Env()
         obs = env.reset()#[0]
+        avail_queue.clear()
     else: 
         eraLogger.exctinct =  False # Set extinct to false after one iteration, to prevent loggin exctinct eras twice
 
@@ -294,8 +295,8 @@ for step in range(steps):
                 max_lifetime = env.realm.players.entities[i+1].time_alive.val
  
             ##if conditions are right make an offspring
-            if len(avail_index)>0 and life_durations[i+1] > MATURE_AGE and birth_interval[i+1] > INTERVAL:
-                MakeOffspring()
+            if len(avail_queue)>0 and life_durations[i+1] > MATURE_AGE and birth_interval[i+1] > INTERVAL:
+                MakeOffspring(i)
 
             inp = get_input(env.realm.players.entities[i+1], obs[i+1]['Tile'], obs[i+1]['Entity'], env.realm.players.entities[i+1].pos)
             output, style, output_attack = model_dict[i+1](inp)
