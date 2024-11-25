@@ -180,6 +180,7 @@ def simple_mutate(player_num, model_dict, alpha=0.01):
   for param in model_dict[player_num].parameters():
     with torch.no_grad():
       param.add_(torch.randn(param.size()) * alpha)
+  return model_dict
 
 
 def crossover(parent1, parent2):

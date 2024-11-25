@@ -1,3 +1,5 @@
+import os
+import pandas as pd
 
 def calculate_avg_lifetime(env,obs, player_N):
   sum = 0
@@ -8,7 +10,7 @@ def calculate_avg_lifetime(env,obs, player_N):
   return sum
 
 class EraLogger:
-  def __init__(self, startStep):
+  def __init__(self):
     self.eraStartStep = 0 #where current era started
     self.exctinct = False
     self.birthTracker = 0
@@ -53,3 +55,54 @@ def GetAgentXP(entity):
     'carving': entity.carving_exp.val,
     'alchemy': entity.alchemy_exp.val,
   }
+
+#def SaveData(outdir, exp_name, unsavedEraData, unsavedAgentEraData, firstSave):
+def SaveData(outdir, exp_name, unsavedEraData, firstSave):
+  eraFilePath = os.path.join(outdir, exp_name + 'era_data.csv')
+  #agentFilePath = os.path.join(outdir, exp_name + 'agent_data.csv')
+
+  if firstSave:
+      df = pd.DataFrame(unsavedEraData)
+      df.to_csv(eraFilePath, index=False) 
+      #df = pd.DataFrame(unsavedAgentEraData)
+      #df.to_csv(agentFilePath) 
+      firstSave = False
+  else:
+      df = pd.DataFrame(unsavedEraData)
+      df.to_csv(eraFilePath, mode='a', header=False, index=False) 
+      #df = pd.DataFrame(unsavedAgentEraData)
+      #df.to_csv(agentFilePath, mode='a', header=False) 
+  unsavedEraData = []
+  #unsavedAgentEraData = []
+
+  #return unsavedEraData, unsavedAgentEraData, firstSave
+  return unsavedEraData, firstSave
+
+    # for i in range(player_N):
+    #     if i+1 in env.realm.players.entities:
+    #         unsavedAgentEraData.append(
+    #             GetAgentData(env.realm.players.entities[i+1], i+1)
+    #         )
+
+
+class EraLoggerV2:
+  def __init__(self):
+    self.firstSave = True
+    self.unsavedEraData = []
+    self.curretEra = 0
+
+
+  def UpdateEraData(self, eraSteps, living_agents):
+    eraData = {
+      'era': self.curretEra,
+      'births': 0, #NOT COUNTED YET
+      'steps': eraSteps, 
+      'living agents': living_agents,
+    }
+    self.curretEra += 1
+    self.unsavedEraData.append(eraData)
+  
+  def SaveToFiles(self, outdir, exp_name):
+    SaveData(outdir, exp_name, self.unsavedEraData, self.firstSave)
+    self.firstSave = False
+    self.unsavedEraData = []
