@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import pickle
 import random
 from logging_functions import EraLoggerV2
 import nmmo
@@ -50,19 +51,26 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
     obs = env.reset()
     SUCCEDED = False
     succededAgents = []
-    #REPLAYHELPER
+    
+    replay_helper = FileReplayHelper()
+    env.realm.record_replay(replay_helper)
+    replay_helper.reset()
 
     while True:
         if env.num_agents == 0:
             if SUCCEDED:
                 model_dict = update_models(model_dict, succededAgents)
+            else:
+                for agent in model_dict.keys():
+                    model_dict = simple_mutate(agent, model_dict, alpha=0.01)
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
             break
 
         if step - startStep >= agentSuccess:
-            print("Pity ran")
+            print("Halfway success")
             model_dict = update_models(model_dict, list(env.realm.players.entities.keys()))
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
+            replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
             agentSuccess *= 2
             break
 
@@ -99,4 +107,5 @@ agentSuccess = 100
 while step < steps:
     step, model_dict, agentSuccess, eraLogger = RunEra(
         step, env, model_dict, agentSuccess, eraLogger)
-    
+
+pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_final.pickle'),'wb'))
