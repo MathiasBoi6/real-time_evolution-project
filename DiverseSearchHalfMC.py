@@ -37,12 +37,13 @@ def update_models(model_dict, succededAgents):
             if agent not in succededAgents:
                 parent1_id, parent2_id = random.sample(succededAgents, 2)
                 model_dict[agent] = crossover(model_dict[parent1_id], model_dict[parent2_id])
-                model_dict[agent].hidden = (torch.zeros(model_dict[agent].hidden[0].shape), torch.zeros(model_dict[agent].hidden[1].shape))
-            model_dict = simple_mutate(agent, model_dict, alpha=0.01)
+                model_dict = simple_mutate(agent, model_dict, alpha=0.01)
+            model_dict[agent].hidden = (torch.zeros(model_dict[agent].hidden[0].shape), torch.zeros(model_dict[agent].hidden[1].shape))
     else:
         for agent in model_dict.keys():
             if agent not in succededAgents:
                 model_dict = simple_mutate(agent, model_dict, alpha=0.01)
+            model_dict[agent].hidden = (torch.zeros(model_dict[agent].hidden[0].shape), torch.zeros(model_dict[agent].hidden[1].shape))
     return model_dict
 
 ### Run one era
@@ -63,11 +64,12 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
             else:
                 for agent in model_dict.keys():
                     model_dict = simple_mutate(agent, model_dict, alpha=0.01)
+                    model_dict[agent].hidden = (torch.zeros(model_dict[agent].hidden[0].shape), torch.zeros(model_dict[agent].hidden[1].shape))
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
             break
 
         if step - startStep >= agentSuccess:
-            print("Halfway success")
+            print("Success")
             model_dict = update_models(model_dict, list(env.realm.players.entities.keys()))
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
             replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
@@ -75,6 +77,7 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
             break
 
         if step > agentSuccess / 2 and not SUCCEDED:
+            print("Halfway success")
             SUCCEDED = True
             succededAgents = list(env.realm.players.entities.keys())
 
@@ -102,7 +105,7 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
 ### Training loop.
 eraLogger = EraLoggerV2()
 step = 0
-steps = 20_001
+steps = 10_000_001
 agentSuccess = 100
 while step < steps:
     step, model_dict, agentSuccess, eraLogger = RunEra(

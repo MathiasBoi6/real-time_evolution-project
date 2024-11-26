@@ -90,15 +90,17 @@ class EraLoggerV2:
     self.firstSave = True
     self.unsavedEraData = []
     self.curretEra = 0
+    self.births = 0
 
 
   def UpdateEraData(self, eraSteps, living_agents):
     eraData = {
       'era': self.curretEra,
-      'births': 0, #NOT COUNTED YET
+      'births': self.births,
       'steps': eraSteps, 
       'living agents': living_agents,
     }
+    self.births = 0
     self.curretEra += 1
     self.unsavedEraData.append(eraData)
   
