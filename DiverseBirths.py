@@ -64,6 +64,11 @@ def RunEra(startStep, env, model_dict, eraLogger):
         #Save era data to file
         if (step+1)%10_000 == 0:
             eraLogger.SaveToFiles(output_dir, EXP_NAME)
+
+        #Save population weights
+        if (step+1)%100_000==0:
+            print('save population weights')
+            pickle.dump(model_dict,open(EXP_NAME+'_agents_model_dict_'+str(step)+'.pickle','wb'))
         
         # Get actions from models
         actions = {}
