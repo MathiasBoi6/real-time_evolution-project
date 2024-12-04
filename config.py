@@ -44,4 +44,7 @@ def set_config():
     nmmo.config.Default.PLAYER_N_OBS = 25
     nmmo.config.Default.PLAYER_VISION_RADIUS = 7
 
+
+    #food
+    nmmo.config.Resource.RESOURCE_FOILAGE_RESPAWN = 0.025 #0.025 default
     return config, NPCs
