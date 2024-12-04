@@ -34,7 +34,7 @@ model_dict = {i + 1: PolicyNet(output_size, output_size_attack) for i in
 
 
 ### Run one era
-def RunEra(startStep, maxStep, env, model_dict, agentSuccess, eraLogger):
+def RunEra(startStep, maxStep, env, model_dict, eraLogger):
     step = startStep
     obs = env.reset()
 
@@ -99,11 +99,12 @@ def RunEra(startStep, maxStep, env, model_dict, agentSuccess, eraLogger):
 
 
         if step % 300 == 0:
-            print(f'step {step}, maxAge {agentSuccess}, era starting step {startStep}')
+            print(f'step {step}, era starting step {startStep}')
 
             # Save era data to file
         if (step + 1) % 10_000 == 0:
             eraLogger.SaveToFiles(output_dir, EXP_NAME)
+            replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
 
         actions = {}
         for agent in env.realm.players.entities.keys():
@@ -117,7 +118,7 @@ def RunEra(startStep, maxStep, env, model_dict, agentSuccess, eraLogger):
         step += 1
 
     # print(f"Era ran for {step - startStep} steps")
-    return step, model_dict, agentSuccess, eraLogger
+    return step, model_dict, eraLogger
 
 
 ###
@@ -127,8 +128,7 @@ def RunEra(startStep, maxStep, env, model_dict, agentSuccess, eraLogger):
 eraLogger = EraLoggerV2()
 step = 0
 steps = 40_001
-agentSuccess = 100
 while step < steps:
-    step, model_dict, agentSuccess, eraLogger = RunEra(step, steps, env, model_dict, agentSuccess, eraLogger)
+    step, model_dict, eraLogger = RunEra(step, steps, env, model_dict, eraLogger)
 
 pickle.dump(model_dict, open(os.path.join(output_dir, EXP_NAME + '_agents_model_dict_final.pickle'), 'wb'))
