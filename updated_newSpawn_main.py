@@ -62,6 +62,7 @@ def RunEra(startStep, maxStep, env, model_dict, eraLogger):
                     if i + 1 not in env.realm.players.entities:
                         avail_index.append(i + 1)
             eraLogger.UpdateEraData(step - startStep, len(env.realm.players.entities))
+            replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
             break
         else:
             available = False
