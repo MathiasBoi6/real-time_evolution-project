@@ -17,7 +17,7 @@ from real_time_evolution import crossover, simple_mutate
 torch.set_num_threads(1)
 
 ### Save destination.
-EXP_NAME = 'DiverseSearchHalfMC'
+EXP_NAME = 'NewSpawn'
 startTime = datetime.now()
 output_dir = os.path.join(os.path.join('output', startTime.strftime("%m-%d")), EXP_NAME)
 os.makedirs(output_dir, exist_ok=True)
