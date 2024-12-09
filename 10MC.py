@@ -16,7 +16,7 @@ torch.set_num_threads(1)
 
 
 ### Save destination.
-EXP_NAME = 'DiverseSearchHalfMC'
+EXP_NAME = '10MC'
 startTime = datetime.now() 
 output_dir = os.path.join(os.path.join('output', startTime.strftime("%m-%d")), EXP_NAME)
 os.makedirs(output_dir, exist_ok=True)
@@ -29,7 +29,7 @@ output_size = 5
 output_size_attack = player_N+1+NPCs
 # Random weights with a FF network
 model_dict = {i+1: PolicyNet(output_size, output_size_attack)  for i in range(player_N)} # Dictionary of random models for each agent
-# LOAD DICT FROM FILE TO CONTINUE TRAINING
+# Continue training from a previous model
 #model_dict = pickle.load(open(EXP_NAME+'_agents_model_dict.pickle','rb'))
 
 ### crossover and mutate models
@@ -75,7 +75,7 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
             model_dict = update_models(model_dict, list(env.realm.players.entities.keys()))
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
             replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step) + "_" + str(agentSuccess)), compress=False)
-            agentSuccess *= 2
+            agentSuccess *= 1.1
             break
 
         if step > agentSuccess / 2 and not SUCCEDED:
@@ -90,7 +90,6 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
         if (step+1)%10_000 == 0:
             eraLogger.SaveToFiles(output_dir, EXP_NAME)
 
-        #Save population weights
         if (step+1)%100_000==0:
             print('save population weights')
             pickle.dump(model_dict,open(EXP_NAME+'_agents_model_dict'+'.pickle','wb'))
@@ -111,12 +110,13 @@ def RunEra(startStep, env, model_dict, agentSuccess, eraLogger):
 
 ### Training loop.
 eraLogger = EraLoggerV2()
-#eraLogger.curretEra = 85692
-step = 0 # step = 9_500_000  # Training continued from 9.589.912
+#eraLogger.curretEra = 48687
+# step = 0 
 steps = 10_000_001
 agentSuccess = 100
 while step < steps:
     step, model_dict, agentSuccess, eraLogger = RunEra(
         step, env, model_dict, agentSuccess, eraLogger)
 
+eraLogger.SaveToFiles(output_dir, EXP_NAME)
 pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_final.pickle'),'wb'))

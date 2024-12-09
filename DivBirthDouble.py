@@ -8,7 +8,7 @@ import nmmo
 from nmmo.render.replay_helper import FileReplayHelper
 
 from agent_neural_net import PolicyNet, get_input
-from config import set_config
+from config import set_config, set_config_Big
 
 import torch
 
@@ -17,7 +17,7 @@ torch.set_num_threads(1)
 
 
 ### Save destination.
-EXP_NAME = 'DiverseBirths'
+EXP_NAME = 'DivBirthDouble'
 startTime = datetime.now() 
 output_dir = os.path.join(os.path.join('output', startTime.strftime("%m-%d")), EXP_NAME)
 os.makedirs(output_dir, exist_ok=True)
@@ -25,18 +25,18 @@ MATURE_AGE = 50
 INTERVAL = 30
 ###
 
-config, NPCs = set_config()
-env = nmmo.Env() #NOTE, Config changes a ?global nmmo. Previously i env.close() and env = nmmo.Env(), but maybe only resetting the env is fixes memory issues.
+config, NPCs = set_config_Big()
+env = nmmo.Env() 
 player_N = config.PLAYER_N
 output_size = 5
 output_size_attack = player_N+1+NPCs
 # Random weights with a FF network
 model_dict = {i+1: PolicyNet(output_size, output_size_attack)  for i in range(player_N)} # Dictionary of random models for each agent
-# Continue training from a previous model
+# LOAD DICT FROM FILE TO CONTINUE TRAINING
 #model_dict = pickle.load(open(EXP_NAME+'_agents_model_dict.pickle','rb'))
 
 ### Run one era
-def RunEra(startStep, env, model_dict, eraLogger):
+def RunEra(startStep, env, model_dict, eraLogger, longestEra):
     step = startStep
     obs = env.reset()
     deadAgents = deque([])
@@ -56,8 +56,10 @@ def RunEra(startStep, env, model_dict, eraLogger):
                 model_dict[agent].hidden = (torch.zeros(model_dict[agent].hidden[0].shape), torch.zeros(model_dict[agent].hidden[1].shape))
             eraLogger.UpdateEraData(step-startStep, len(env.realm.players.entities))
 
-            if (step - startStep) > 10_000:
-                replay_helper.save(os.path.join(output_dir, EXP_NAME + str(step)), compress=False)
+            if (step - startStep) > longestEra:
+                replay_helper.save(os.path.join(output_dir, EXP_NAME + str(longestEra)), compress=False)
+                longestEra *= 1.2
+                print("Replay Saved")
             break
 
         if step%300==0:
@@ -118,18 +120,19 @@ def RunEra(startStep, env, model_dict, eraLogger):
         step += 1
 
     #print(f"Era ran for {step - startStep} steps")
-    return step, model_dict,  eraLogger
+    return step, model_dict, eraLogger, longestEra
 ###
 
 
 ### Training loop.
 eraLogger = EraLoggerV2()
-#eraLogger.curretEra = 13663
-step = 0 #step = 7_300_000 # continuing from 7.349.950
+#eraLogger.curretEra = 4716 # Training continued
+step = 0 # step = 8_900_000 # Training continued from 8.910.117
 steps = 10_000_001
+longestEra = 100 #longestEra is for recording interesting replays
 while step < steps:
-    step, model_dict, eraLogger = RunEra(
-        step, env, model_dict, eraLogger)
+    step, model_dict, eraLogger, longestEra = RunEra(
+        step, env, model_dict, eraLogger, longestEra)
 
 eraLogger.SaveToFiles(output_dir, EXP_NAME)
 pickle.dump(model_dict,open(os.path.join(output_dir, EXP_NAME+'_agents_model_dict_final.pickle'),'wb'))

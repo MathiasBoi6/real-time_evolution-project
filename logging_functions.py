@@ -9,6 +9,8 @@ def calculate_avg_lifetime(env,obs, player_N):
   sum = sum/player_N
   return sum
 
+
+#EraLogger was changed when trying to fix memory issues. It has been kept because of old files still using it.
 class EraLogger:
   def __init__(self):
     self.eraStartStep = 0 #where current era started
