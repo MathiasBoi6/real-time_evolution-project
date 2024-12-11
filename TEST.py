@@ -79,6 +79,11 @@ def RunEra(startStep, env, model_dict, eraLogger):
             output, style, output_attack = model_dict[agent](inp)
             actions[agent] = {"Move":{"Direction":int(output)} , "Attack":{"Style":style,"Target":int(output_attack)}, "Use":{"InventoryItem":0}}       
     
+        if step%100==0:
+            if not env.num_agents == 0:
+                agent = list(env.realm.players.entities.keys())[0]
+                print(obs[agent]["Inventory"]) 
+    
         # increment agent ages
         for agent in env.realm.players.entities.keys():
             agentAges[agent] += 1
