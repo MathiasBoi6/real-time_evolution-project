@@ -55,7 +55,9 @@ def RunEra(startStep, maxStep, env, model_dict, eraLogger):
     replay_helper.reset()
 
     while step < maxStep:
-        if env.num_agents == 0:
+        if env.num_agents != player_N:
+            available = True
+        elif env.num_agents == 0:
             available = True
             if env.num_agents != player_N:
                 for i in range(player_N):
